@@ -67,10 +67,80 @@ export function Step3Result() {
   };
 
   const handleCopy = async () => {
-    const text = selected.map((c) => c.lop).join("\n");
+    const entries = selected
+      .map((c) => `        "${c.maMH}": "${c.lop}"`)
+      .join(",\n");
+    
+    const script = `// ==UserScript==
+// @name         Auto Register Course HCMUS (Manual Submit)
+// @namespace    http://tampermonkey.net/
+// @version      1.3
+// @description  Tool hỗ trợ tự động chọn học phần Portal HCMUS nhưng KHÔNG tự động submit
+// @author       Dũng
+// @match        https://*.hcmus.edu.vn/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // ĐIỀN CÁC MÔN HỌC CẦN ĐĂNG KÝ VÀO ĐÂY
+    var expectedCourses = {
+${entries}
+    };
+
+    var interval = 3;
+
+    function register() {
+        const courses = document.querySelectorAll(".dkhp-lop-dangky tbody tr");
+        let isCourseFound = false;
+
+        function selectExpectedCourses() {
+            let found = false;
+            courses.forEach((course) => {
+                const idNode = course.querySelector("td:nth-of-type(1)");
+                const classIdNode = course.querySelector("td:nth-of-type(3)");
+                const checkbox = course.querySelector("td:last-of-type input[type='checkbox']");
+
+                if (idNode && classIdNode && checkbox) {
+                    const id = idNode.textContent.trim();
+                    const classId = classIdNode.textContent.trim();
+
+                    if (expectedCourses[id] && expectedCourses[id] === classId) {
+                        if (!checkbox.checked) {
+                            checkbox.click();
+                        }
+                        found = true;
+                    }
+                }
+            });
+            return found;
+        }
+
+        // Nếu tìm thấy ít nhất 1 lớp khớp yêu cầu
+        if (selectExpectedCourses()) {
+            isCourseFound = true;
+            console.log("✅ Đã tự động tick chọn lớp! Tool đã dừng tải lại trang. Vui lòng kiểm tra và bấm 'Đăng Ký' thủ công.");
+            // Đã xóa phần bypass window.confirm và tự động click submit ở đây
+        }
+
+        // CHỈ reload khi CHƯA tìm thấy môn học nào
+        if (!isCourseFound) {
+            console.log(\`⏳ Chưa mở lớp. Tự động tải lại trang sau \${interval} giây...\`);
+            setTimeout(() => window.location.reload(), interval * 1000);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', register);
+    } else {
+        setTimeout(register, 1000);
+    }
+})();`;
+    
     try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`Đã sao chép ${selected.length} mã lớp.`);
+      await navigator.clipboard.writeText(script);
+      toast.success(`Đã sao chép script với ${selected.length} môn.`);
     } catch {
       toast.error("Không thể sao chép.");
     }
